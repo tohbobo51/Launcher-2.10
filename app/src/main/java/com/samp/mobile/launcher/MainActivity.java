@@ -2,7 +2,6 @@ package com.samp.mobile.launcher;
 
 import android.app.Activity;
 import android.content.Context;
-import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.AsyncTask;
 import android.os.Bundle;
@@ -35,8 +34,6 @@ import com.android.volley.toolbox.Volley;
 import com.google.android.material.tabs.TabLayout;
 import com.joom.paranoid.Obfuscate;
 import com.samp.mobile.R;
-import com.samp.mobile.game.SAMP;
-import com.samp.mobile.launcher.GoogleSignInActivity;
 import com.samp.mobile.launcher.adapters.FavouriteServerAdapter;
 import com.samp.mobile.launcher.adapters.ServerAdapter;
 import com.samp.mobile.launcher.config.Config;
@@ -68,8 +65,6 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 @Obfuscate
 public class MainActivity extends AppCompatActivity {
-    public static final int REQUEST_GOOGLE_SIGN_IN = 0x4747;
-
     public String[] tabTitles = { "Servers", "Info", "Settings" };
     public int[] tabImages = { R.drawable.ic_mainmenu, R.drawable.ic_server, R.drawable.ic_settingsmenu};
     public int[] tabSelectedImages = { R.drawable.ic_mainmenu_on, R.drawable.ic_serveron, R.drawable.ic_settingsmenu_on};
@@ -152,29 +147,6 @@ public class MainActivity extends AppCompatActivity {
 
         getServersInfo();
         getFavoriteServersInfo();
-    }
-
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode != REQUEST_GOOGLE_SIGN_IN) {
-            return;
-        }
-        if (resultCode != Activity.RESULT_OK || data == null) {
-            Toast.makeText(this, "Login Google dibatalkan atau gagal.", Toast.LENGTH_LONG).show();
-            return;
-        }
-
-        String loginName = data.getStringExtra(GoogleSignInActivity.EXTRA_LOGIN_NAME);
-        if (loginName == null || !loginName.matches("AUTH[A-HJ-NP-Z2-9]{16}")) {
-            Toast.makeText(this, "Sesi login tidak valid. Ulangi login Google.", Toast.LENGTH_LONG).show();
-            return;
-        }
-
-        Intent gameIntent = new Intent(this, SAMP.class);
-        gameIntent.putExtra(SAMP.EXTRA_GOOGLE_LOGIN_TICKET, loginName);
-        startActivity(gameIntent);
-        finish();
     }
 
     public final ArrayList<SAMPServerInfo> getServerList() {

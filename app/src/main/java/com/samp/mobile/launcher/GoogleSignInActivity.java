@@ -41,6 +41,7 @@ import java.util.regex.Pattern;
 
 public final class GoogleSignInActivity extends AppCompatActivity {
     public static final String EXTRA_LOGIN_NAME = "google_login_name";
+    public static final String EXTRA_TICKET_EXPIRES_AT = "google_ticket_expires_at";
 
     private static final Pattern UCP_NAME_PATTERN =
             Pattern.compile("^[A-Za-z][A-Za-z0-9_]{1,29}[A-Za-z0-9]$");
@@ -328,6 +329,7 @@ public final class GoogleSignInActivity extends AppCompatActivity {
         completed = true;
         Intent result = new Intent();
         result.putExtra(EXTRA_LOGIN_NAME, ticket.loginName);
+        result.putExtra(EXTRA_TICKET_EXPIRES_AT, ticket.expiresAtMillis);
         setResult(RESULT_OK, result);
         finish();
     }

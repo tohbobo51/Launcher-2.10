@@ -3,6 +3,8 @@ package com.samp.mobile.launcher.util;
 import android.content.Context;
 import android.content.res.AssetManager;
 
+import org.ini4j.Wini;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -12,10 +14,22 @@ import java.io.OutputStream;
 public class ConfigValidator {
     public static void validateConfigFiles(Context context) {
         File externalFilesDir = context.getExternalFilesDir(null);
+        if (externalFilesDir == null) {
+            return;
+        }
         File file = new File(externalFilesDir, "SAMP/settings.ini");
         if (!file.exists()) {
             file.getParentFile().mkdirs();
             copyAsset(context.getAssets(), "settings.ini", file.toString());
+        }
+        if (file.exists()) {
+            try {
+                Wini settings = new Wini(file);
+                settings.put("client", "name", "");
+                settings.store();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
         /*File file2 = new File(externalFilesDir, "gta_sa.set");
         if (!file2.exists()) {

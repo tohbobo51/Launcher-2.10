@@ -12,6 +12,8 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.Locale;
 
 /** Exchanges a Google ID token for a short-lived, single-use game login ticket. */
@@ -108,7 +110,19 @@ public final class NativeGoogleAuthApi {
                 throw new AuthException("INVALID_SERVER_RESPONSE",
                         "Server mengembalikan sesi login yang tidak valid.");
             }
-            return new LoginTicket(loginName, response.optString("characterName", ""));
+            long expiresAtMillis;
+            try {
+                expiresAtMillis = Instant.parse(response.optString("expiresAt", "")).toEpochMilli();
+            } catch (DateTimeParseException e) {
+                throw new AuthException("INVALID_SERVER_RESPONSE",
+                        "Server tidak mengirim waktu kedaluwarsa sesi yang valid.");
+            }
+            if (expiresAtMillis <= System.currentTimeMillis()) {
+                throw new AuthException("INVALID_SERVER_RESPONSE",
+                        "Ticket login dari server sudah kedaluwarsa.");
+            }
+            return new LoginTicket(loginName, response.optString("characterName", ""),
+                    expiresAtMillis);
         } catch (JSONException e) {
             throw new IOException("Could not encode authentication request.", e);
         } finally {
@@ -185,10 +199,12 @@ public final class NativeGoogleAuthApi {
     public static final class LoginTicket {
         public final String loginName;
         public final String characterName;
+        public final long expiresAtMillis;
 
-        private LoginTicket(String loginName, String characterName) {
+        private LoginTicket(String loginName, String characterName, long expiresAtMillis) {
             this.loginName = loginName;
             this.characterName = characterName;
+            this.expiresAtMillis = expiresAtMillis;
         }
     }
 

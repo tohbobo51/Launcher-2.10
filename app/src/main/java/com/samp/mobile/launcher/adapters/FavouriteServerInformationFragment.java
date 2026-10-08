@@ -27,6 +27,8 @@ import com.samp.mobile.game.SAMP;
 import com.samp.mobile.launcher.MainActivity;
 import com.samp.mobile.launcher.data.FavoritesInfo;
 import com.samp.mobile.launcher.util.ButtonAnimator;
+import com.samp.mobile.launcher.util.ConfigValidator;
+import com.samp.mobile.launcher.util.GoogleAuthTicketStore;
 import com.samp.mobile.launcher.util.SAMPServerInfo;
 import com.samp.mobile.launcher.util.SharedPreferenceCore;
 
@@ -129,11 +131,11 @@ public class FavouriteServerInformationFragment extends Dialog {
         mConnect.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+                ConfigValidator.validateConfigFiles(act);
                 File file = new File(act.getExternalFilesDir(null) + "/SAMP/settings.ini");
                 if(file.exists()) {
                     try {
                         Wini wini = new Wini(file);
-                        String name = wini.get("client", "name");
                         wini.put("client", "host", sampServerInfo.getAddress());
                         wini.put("client", "port", sampServerInfo.getPort());
                         wini.store();
@@ -184,15 +186,11 @@ public class FavouriteServerInformationFragment extends Dialog {
                         dismiss();
                     }
                     else {
-                        act.startActivity(new Intent(act, SAMP.class));
-                        act.finish();
-                        dismiss();
+                        startGoogleOnlyGame();
                     }
                 }
                 else {
-                    act.startActivity(new Intent(act, SAMP.class));
-                    act.finish();
-                    dismiss();
+                    startGoogleOnlyGame();
                 }
             }
         });
@@ -204,6 +202,23 @@ public class FavouriteServerInformationFragment extends Dialog {
                 dismiss();
             }
         });
+    }
+
+    private void startGoogleOnlyGame() {
+        GoogleAuthTicketStore.Ticket ticket = GoogleAuthTicketStore.consume(act);
+        if (ticket == null) {
+            Toast.makeText(act,
+                    "Login Google dulu di tab Settings, lalu sambungkan server sebelum ticket kedaluwarsa.",
+                    Toast.LENGTH_LONG).show();
+            dismiss();
+            return;
+        }
+        Intent gameIntent = new Intent(act, SAMP.class);
+        gameIntent.putExtra(SAMP.EXTRA_GOOGLE_LOGIN_TICKET, ticket.loginName);
+        gameIntent.putExtra(SAMP.EXTRA_GOOGLE_LOGIN_EXPIRES_AT, ticket.expiresAtMillis);
+        act.startActivity(gameIntent);
+        act.finish();
+        dismiss();
     }
 
 }

@@ -25,6 +25,7 @@ import java.nio.charset.StandardCharsets;
 @Obfuscate
 public class SAMP extends GTASA implements CustomKeyboard.InputListener, HeightProvider.HeightListener {
     public static final String EXTRA_GOOGLE_LOGIN_TICKET = "google_login_ticket";
+    public static final String EXTRA_GOOGLE_LOGIN_EXPIRES_AT = "google_login_expires_at";
     private static final String TAG = "SAMP";
     private static SAMP instance;
 
@@ -216,9 +217,11 @@ public class SAMP extends GTASA implements CustomKeyboard.InputListener, HeightP
     private boolean stageGoogleLoginTicket(Intent intent) {
         String loginName = intent == null
                 ? null : intent.getStringExtra(EXTRA_GOOGLE_LOGIN_TICKET);
+        long expiresAt = intent == null
+                ? 0L : intent.getLongExtra(EXTRA_GOOGLE_LOGIN_EXPIRES_AT, 0L);
         File externalFiles = getExternalFilesDir(null);
         if (externalFiles == null) {
-            return loginName == null || loginName.isEmpty();
+            return false;
         }
 
         File ticketFile = new File(externalFiles, "SAMP/google-login-ticket");
@@ -226,10 +229,8 @@ public class SAMP extends GTASA implements CustomKeyboard.InputListener, HeightP
             Log.e(TAG, "Could not clear a stale Google login ticket.");
             return false;
         }
-        if (loginName == null || loginName.isEmpty()) {
-            return true;
-        }
-        if (!loginName.matches("AUTH[A-HJ-NP-Z2-9]{16}")) {
+        if (loginName == null || !loginName.matches("AUTH[A-HJ-NP-Z2-9]{16}")
+                || expiresAt <= System.currentTimeMillis()) {
             return false;
         }
 

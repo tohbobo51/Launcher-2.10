@@ -1,9 +1,8 @@
 package com.samp.mobile.launcher.fragments;
 
+import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
-import android.text.Editable;
-import android.text.TextWatcher;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -15,21 +14,24 @@ import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
 import android.widget.Button;
 import android.widget.CompoundButton;
-import android.widget.EditText;
 import android.widget.SeekBar;
 import android.widget.Spinner;
 import android.widget.Switch;
 import android.widget.TextView;
+import android.widget.Toast;
 import android.widget.ToggleButton;
 
+import androidx.annotation.Nullable;
 import androidx.appcompat.widget.SwitchCompat;
 import androidx.fragment.app.Fragment;
 
 import com.joom.paranoid.Obfuscate;
 import com.samp.mobile.R;
 import com.samp.mobile.launcher.MainActivity;
+import com.samp.mobile.launcher.GoogleSignInActivity;
 import com.samp.mobile.launcher.SplashActivity;
 import com.samp.mobile.launcher.util.ButtonAnimator;
+import com.samp.mobile.launcher.util.GoogleAuthTicketStore;
 import com.samp.mobile.launcher.util.SharedPreferenceCore;
 import com.samp.mobile.launcher.util.Util;
 
@@ -41,8 +43,10 @@ import java.io.IOException;
 @Obfuscate
 public class SettingsFragment extends Fragment {
 
+    private static final int REQUEST_GOOGLE_LOGIN = 0x4751;
+
     Wini mWini = null;
-    EditText mNickName;
+    Button mGoogleLoginButton;
     SwitchCompat mKeyboardSwitch;
     SwitchCompat mVoiceSwitch;
     SwitchCompat mModifySwitch;
@@ -65,7 +69,11 @@ public class SettingsFragment extends Fragment {
 
         ((MainActivity)getActivity()).hideKeyboard(getActivity());
 
-        mNickName = view.findViewById(R.id.settings_nickname);
+        mGoogleLoginButton = view.findViewById(R.id.google_login_button);
+        mGoogleLoginButton.setOnTouchListener(new ButtonAnimator(getContext(), mGoogleLoginButton));
+        mGoogleLoginButton.setOnClickListener(v -> startActivityForResult(
+                new Intent(requireContext(), GoogleSignInActivity.class), REQUEST_GOOGLE_LOGIN));
+        refreshGoogleLoginButton();
         autoCompleteTextView = view.findViewById(R.id.spinner);
         mKeyboardSwitch = view.findViewById(R.id.keyboard_switch);
         mFPSSwitch = view.findViewById(R.id.fps_switch);
@@ -84,10 +92,6 @@ public class SettingsFragment extends Fragment {
         File file = new File(getActivity().getExternalFilesDir(null) + "/SAMP/settings.ini");
         try {
             mWini = new Wini(file);
-
-            mNickName.setText(mWini.get("client", "name"));
-
-            mWini.store();
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -111,34 +115,6 @@ public class SettingsFragment extends Fragment {
 
             @Override
             public void onNothingSelected(AdapterView<?> parent) {
-
-            }
-        });
-
-        mNickName.addTextChangedListener(new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence charSequence, int i, int i1, int i2) {
-
-            }
-
-            @Override
-            public void onTextChanged(CharSequence charSequence, int i, int i1, int i2) {
-                String text = charSequence.toString();
-                File file = new File(getActivity().getExternalFilesDir(null) + "/SAMP/settings.ini");
-                if(file.exists()) {
-                    try {
-                        if(mWini != null) {
-                            mWini.put("client", "name", text);
-                            mWini.store();
-                        }
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-            }
-
-            @Override
-            public void afterTextChanged(Editable editable) {
 
             }
         });
@@ -298,6 +274,39 @@ public class SettingsFragment extends Fragment {
         return view;
     }
 
+    private void refreshGoogleLoginButton() {
+        if (mGoogleLoginButton == null || getContext() == null) {
+            return;
+        }
+        mGoogleLoginButton.setText(GoogleAuthTicketStore.hasValidTicket(requireContext())
+                ? "Google siap — Connect sekarang" : "Login dengan Google");
+    }
+
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != REQUEST_GOOGLE_LOGIN) {
+            return;
+        }
+        if (resultCode != Activity.RESULT_OK || data == null) {
+            refreshGoogleLoginButton();
+            return;
+        }
+
+        String loginName = data.getStringExtra(GoogleSignInActivity.EXTRA_LOGIN_NAME);
+        long expiresAt = data.getLongExtra(GoogleSignInActivity.EXTRA_TICKET_EXPIRES_AT, 0L);
+        if (!GoogleAuthTicketStore.save(requireContext(), loginName, expiresAt)) {
+            Toast.makeText(requireContext(), "Sesi Google tidak valid atau sudah kedaluwarsa. Login lagi.",
+                    Toast.LENGTH_LONG).show();
+            refreshGoogleLoginButton();
+            return;
+        }
+
+        refreshGoogleLoginButton();
+        Toast.makeText(requireContext(), "Google berhasil login. Sambungkan server sekarang.",
+                Toast.LENGTH_LONG).show();
+    }
+
     @Override
     public void onResume() {
         super.onResume();
@@ -328,5 +337,6 @@ public class SettingsFragment extends Fragment {
             case 15: mMessagesSeekBar.setProgress(3); break;
         }
         mMessagesText.setText(String.valueOf(message));
+        refreshGoogleLoginButton();
     }
 }

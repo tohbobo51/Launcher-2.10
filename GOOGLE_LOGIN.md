@@ -25,4 +25,4 @@ Build release akan dihentikan jika `GOOGLE_WEB_CLIENT_ID` kosong, agar APK tidak
 
 ## Cara kerja ticket
 
-Backend memverifikasi ID token dan nonce, lalu menerbitkan nama pemain `AUTH…` satu kali pakai dengan masa berlaku singkat. Launcher menyimpan ticket hanya sementara untuk dibaca native client, lalu menghapus file ticket. GM mengambil ticket saat koneksi, kemudian mengganti nama pemain menjadi nama karakter terdaftar. Jangan cache atau gunakan ulang ticket, dan pilih opsi login Google hanya untuk server GM yang memakai API ini; opsi koneksi biasa tetap tersedia untuk server lain.
+Login Google dilakukan dari tab **Settings**. Setelah berhasil, launcher menyimpan ticket `AUTH…` satu kali pakai sampai waktu kedaluwarsa yang dikirim backend. Sambungkan server segera; opsi koneksi tanpa Google dan input nickname manual telah dihapus. Ticket dihapus dari penyimpanan aplikasi saat Connect, diteruskan ke native client untuk dibaca sekali, lalu dihapus dari file. GM menukar ticket dengan karakter yang sudah terdaftar. Akun Google baru tetap perlu menyelesaikan pendaftaran akun/karakter jika GM meminta data tersebut.
