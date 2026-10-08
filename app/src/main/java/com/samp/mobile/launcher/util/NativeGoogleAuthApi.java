@@ -81,6 +81,8 @@ public final class NativeGoogleAuthApi {
                 registrationJson.put("birthplace", registration.birthplace);
                 registrationJson.put("birthdate", registration.birthdate);
                 registrationJson.put("gender", registration.gender);
+                registrationJson.put("height", registration.height);
+                registrationJson.put("weight", registration.weight);
                 request.put("registration", registrationJson);
             }
             byte[] requestBytes = request.toString().getBytes(StandardCharsets.UTF_8);
@@ -185,14 +187,18 @@ public final class NativeGoogleAuthApi {
         public final String birthplace;
         public final String birthdate;
         public final String gender;
+        public final int height;
+        public final int weight;
 
         public RegistrationData(String ucpName, String characterName, String birthplace,
-                                String birthdate, String gender) {
+                                String birthdate, String gender, int height, int weight) {
             this.ucpName = ucpName;
             this.characterName = characterName;
             this.birthplace = birthplace;
             this.birthdate = birthdate;
             this.gender = gender;
+            this.height = height;
+            this.weight = weight;
         }
     }
 

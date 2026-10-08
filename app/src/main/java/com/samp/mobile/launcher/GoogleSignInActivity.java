@@ -2,22 +2,19 @@ package com.samp.mobile.launcher;
 
 import android.app.DatePickerDialog;
 import android.content.Intent;
+import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
 import android.util.Base64;
 import android.text.InputFilter;
-import android.view.ViewGroup;
+import android.view.View;
 import android.widget.ArrayAdapter;
+import android.widget.AutoCompleteTextView;
 import android.widget.Button;
-import android.widget.EditText;
-import android.widget.LinearLayout;
-import android.widget.ScrollView;
-import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
-import android.text.InputType;
 
 import androidx.annotation.Nullable;
-import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import androidx.credentials.Credential;
@@ -28,13 +25,21 @@ import androidx.credentials.GetCredentialRequest;
 import androidx.credentials.GetCredentialResponse;
 import androidx.credentials.exceptions.GetCredentialException;
 
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption;
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption;
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential;
 import com.samp.mobile.BuildConfig;
+import com.samp.mobile.R;
+import com.samp.mobile.game.SAMP;
+import com.samp.mobile.launcher.util.GoogleAuthTicketStore;
 import com.samp.mobile.launcher.util.NativeGoogleAuthApi;
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.textfield.TextInputEditText;
+import com.google.android.material.textfield.TextInputLayout;
 
 import java.io.IOException;
 import java.security.SecureRandom;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Locale;
 import java.util.regex.Pattern;
@@ -42,6 +47,7 @@ import java.util.regex.Pattern;
 public final class GoogleSignInActivity extends AppCompatActivity {
     public static final String EXTRA_LOGIN_NAME = "google_login_name";
     public static final String EXTRA_TICKET_EXPIRES_AT = "google_ticket_expires_at";
+    public static final String EXTRA_AUTO_CONNECT = "google_auto_connect";
 
     private static final Pattern UCP_NAME_PATTERN =
             Pattern.compile("^[A-Za-z][A-Za-z0-9_]{1,29}[A-Za-z0-9]$");
@@ -51,14 +57,18 @@ public final class GoogleSignInActivity extends AppCompatActivity {
             Pattern.compile("^[A-Za-z][A-Za-z .,'-]{1,62}$");
 
     private boolean completed;
+    private boolean autoConnectFlow;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        beginSignIn();
+        autoConnectFlow = getIntent().getBooleanExtra(EXTRA_AUTO_CONNECT, false);
+        if (getSupportActionBar() != null) getSupportActionBar().hide();
+        // Use an already authorized Google account first when reconnecting from the server tab.
+        beginSignIn(!autoConnectFlow);
     }
 
-    private void beginSignIn() {
+    private void beginSignIn(boolean interactive) {
         String webClientId = BuildConfig.GOOGLE_WEB_CLIENT_ID;
         if (webClientId == null || webClientId.trim().isEmpty()) {
             finishWithError("Login Google belum dikonfigurasi untuk aplikasi ini.");
@@ -73,16 +83,25 @@ public final class GoogleSignInActivity extends AppCompatActivity {
                     Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_PADDING
             );
 
-            GetSignInWithGoogleOption googleOption = new GetSignInWithGoogleOption.Builder(
-                    webClientId.trim()
-            ).setNonce(nonce).build();
-            GetCredentialRequest request = new GetCredentialRequest.Builder()
-                    .addCredentialOption(googleOption)
-                    .build();
+            GetCredentialRequest.Builder requestBuilder = new GetCredentialRequest.Builder();
+            if (interactive) {
+                GetSignInWithGoogleOption googleOption = new GetSignInWithGoogleOption.Builder(
+                        webClientId.trim()
+                ).setNonce(nonce).build();
+                requestBuilder.addCredentialOption(googleOption);
+            } else {
+                GetGoogleIdOption googleOption = new GetGoogleIdOption.Builder()
+                        .setServerClientId(webClientId.trim())
+                        .setFilterByAuthorizedAccounts(true)
+                        .setAutoSelectEnabled(true)
+                        .setNonce(nonce)
+                        .build();
+                requestBuilder.addCredentialOption(googleOption);
+            }
 
             CredentialManager.create(this).getCredentialAsync(
                     this,
-                    request,
+                    requestBuilder.build(),
                     null,
                     ContextCompat.getMainExecutor(this),
                     new CredentialManagerCallback<GetCredentialResponse, GetCredentialException>() {
@@ -95,12 +114,10 @@ public final class GoogleSignInActivity extends AppCompatActivity {
                                 finishWithError("Google tidak mengembalikan kredensial login yang valid.");
                                 return;
                             }
-
                             try {
                                 GoogleIdTokenCredential googleCredential =
                                         GoogleIdTokenCredential.createFrom(
-                                                ((CustomCredential) credential).getData()
-                                        );
+                                                ((CustomCredential) credential).getData());
                                 exchangeGoogleToken(googleCredential.getIdToken(), nonce);
                             } catch (RuntimeException e) {
                                 finishWithError("Tidak dapat membaca hasil login Google. Coba lagi.");
@@ -109,7 +126,12 @@ public final class GoogleSignInActivity extends AppCompatActivity {
 
                         @Override
                         public void onError(GetCredentialException error) {
-                            finishWithError("Login Google dibatalkan atau gagal. Silakan coba lagi.");
+                            if (!interactive && !isFinishing() && !completed) {
+                                // No cached consent/account: fall back to Google's interactive picker.
+                                beginSignIn(true);
+                            } else {
+                                finishWithError("Login Google dibatalkan atau gagal. Silakan coba lagi.");
+                            }
                         }
                     }
             );
@@ -127,9 +149,7 @@ public final class GoogleSignInActivity extends AppCompatActivity {
                 runOnUiThread(() -> finishWithTicket(ticket));
             } catch (NativeGoogleAuthApi.AuthException e) {
                 runOnUiThread(() -> {
-                    if (isFinishing() || isDestroyed() || completed) {
-                        return;
-                    }
+                    if (isFinishing() || isDestroyed() || completed) return;
                     if ("REGISTRATION_REQUIRED".equals(e.code)) {
                         showRegistrationForm(idToken, nonce, true);
                     } else if ("CHARACTER_REGISTRATION_REQUIRED".equals(e.code)) {
@@ -140,46 +160,71 @@ public final class GoogleSignInActivity extends AppCompatActivity {
                 });
             } catch (IOException e) {
                 runOnUiThread(() -> finishWithError(
-                        "Tidak dapat menghubungi layanan login. Periksa koneksi lalu coba lagi."
-                ));
+                        "Tidak dapat menghubungi layanan login. Periksa koneksi lalu coba lagi."));
             }
         }, "xyron-google-auth").start();
     }
 
     private void showRegistrationForm(String idToken, String nonce, boolean createAccount) {
-        if (isFinishing() || isDestroyed() || completed) {
-            return;
+        if (isFinishing() || isDestroyed() || completed) return;
+        setContentView(R.layout.activity_google_registration);
+
+        TextView title = findViewById(R.id.registration_title);
+        TextView subtitle = findViewById(R.id.registration_subtitle);
+        TextInputLayout ucpLayout = findViewById(R.id.registration_ucp_layout);
+        TextInputEditText ucpName = findViewById(R.id.registration_ucp);
+        TextInputLayout characterLayout = findViewById(R.id.registration_character_layout);
+        TextInputEditText characterName = findViewById(R.id.registration_character);
+        TextInputLayout countryLayout = findViewById(R.id.registration_country_layout);
+        AutoCompleteTextView country = findViewById(R.id.registration_country);
+        TextInputLayout genderLayout = findViewById(R.id.registration_gender_layout);
+        AutoCompleteTextView gender = findViewById(R.id.registration_gender);
+        TextInputLayout heightLayout = findViewById(R.id.registration_height_layout);
+        TextInputEditText height = findViewById(R.id.registration_height);
+        TextInputLayout weightLayout = findViewById(R.id.registration_weight_layout);
+        TextInputEditText weight = findViewById(R.id.registration_weight);
+        MaterialButton birthdateButton = findViewById(R.id.registration_birthdate);
+        MaterialButton submit = findViewById(R.id.registration_submit);
+        MaterialButton cancel = findViewById(R.id.registration_cancel);
+
+        if (createAccount) {
+            title.setText("Create your account");
+            subtitle.setText("Buat akun UCP dan profil karakter. Semua kolom wajib diisi; BB dalam kg dan TB dalam cm.");
+        } else {
+            title.setText("Create your character");
+            subtitle.setText("Lengkapi profil karakter untuk akun ini. Semua kolom wajib diisi; BB dalam kg dan TB dalam cm.");
+            ucpLayout.setVisibility(View.GONE);
         }
-
-        LinearLayout fields = new LinearLayout(this);
-        fields.setOrientation(LinearLayout.VERTICAL);
-        int padding = dp(18);
-        fields.setPadding(padding, dp(8), padding, dp(8));
-
-        TextView note = new TextView(this);
-        note.setText("Isi data karakter roleplay. Tanggal dan tempat lahir di bawah adalah data karakter, bukan data akun Google. Tinggi/berat awal server: 175 cm / 70 kg.");
-        note.setTextSize(14);
-        fields.addView(note, matchWrap());
-
-        EditText ucpName = createAccount
-                ? addInput(fields, "Nama akun UCP (3–31 huruf/angka/underscore)", InputType.TYPE_CLASS_TEXT)
-                : null;
-        EditText characterName = addInput(fields, "Nama karakter: NamaDepan_NamaBelakang",
-                InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
-        EditText birthplace = addInput(fields, "Tempat lahir karakter", InputType.TYPE_CLASS_TEXT);
-        if (ucpName != null) {
-            ucpName.setFilters(new InputFilter[]{new InputFilter.LengthFilter(31)});
-        }
+        ucpName.setFilters(new InputFilter[]{new InputFilter.LengthFilter(31)});
         characterName.setFilters(new InputFilter[]{new InputFilter.LengthFilter(23)});
-        birthplace.setFilters(new InputFilter[]{new InputFilter.LengthFilter(63)});
+        height.setFilters(new InputFilter[]{new InputFilter.LengthFilter(3)});
+        weight.setFilters(new InputFilter[]{new InputFilter.LengthFilter(3)});
+
+        String[] countries = getResources().getStringArray(R.array.registration_countries);
+        ArrayAdapter<String> countryAdapter = new ArrayAdapter<>(
+                this, android.R.layout.simple_dropdown_item_1line, countries);
+        country.setAdapter(countryAdapter);
+        country.setThreshold(0);
+        country.setDropDownBackgroundDrawable(new ColorDrawable(Color.WHITE));
+        country.setOnClickListener(view -> country.showDropDown());
+        country.setOnFocusChangeListener((view, hasFocus) -> {
+            if (hasFocus) country.showDropDown();
+        });
+
+        String[] genders = {"Male", "Female"};
+        ArrayAdapter<String> genderAdapter = new ArrayAdapter<>(
+                this, android.R.layout.simple_dropdown_item_1line, genders);
+        gender.setAdapter(genderAdapter);
+        gender.setOnClickListener(view -> gender.showDropDown());
+        gender.setOnFocusChangeListener((view, hasFocus) -> {
+            if (hasFocus) gender.showDropDown();
+        });
 
         final String[] birthdate = {""};
-        Button birthdateButton = new Button(this);
-        birthdateButton.setAllCaps(false);
-        birthdateButton.setText("Pilih tanggal lahir karakter");
-        fields.addView(birthdateButton, matchWrap());
         birthdateButton.setOnClickListener(view -> {
             Calendar today = Calendar.getInstance();
+            Calendar initial = (Calendar) today.clone();
+            initial.add(Calendar.YEAR, -18);
             DatePickerDialog picker = new DatePickerDialog(
                     this,
                     (datePicker, year, month, day) -> {
@@ -187,146 +232,119 @@ public final class GoogleSignInActivity extends AppCompatActivity {
                                 year, month + 1, day);
                         birthdateButton.setText(birthdate[0]);
                     },
-                    today.get(Calendar.YEAR) - 18,
-                    today.get(Calendar.MONTH),
-                    today.get(Calendar.DAY_OF_MONTH)
-            );
+                    initial.get(Calendar.YEAR), initial.get(Calendar.MONTH), initial.get(Calendar.DAY_OF_MONTH));
             picker.getDatePicker().setMaxDate(System.currentTimeMillis());
             picker.show();
         });
-
-        Spinner gender = new Spinner(this);
-        String[] genderOptions = {"Pilih gender karakter", "Laki-laki", "Perempuan"};
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(
-                this, android.R.layout.simple_spinner_item, genderOptions);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        gender.setAdapter(adapter);
-        fields.addView(gender, matchWrap());
-
-        ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(false);
-        scroll.addView(fields, new ScrollView.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle(createAccount ? "Daftar akun dan karakter" : "Daftar karakter")
-                .setView(scroll)
-                .setNegativeButton("Batal", (dialogInterface, which) -> finishWithError(null))
-                .setPositiveButton("Daftar & masuk", null)
-                .create();
-        dialog.setOnCancelListener(dialogInterface -> finishWithError(null));
-        dialog.show();
-
-        Button submit = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+        cancel.setOnClickListener(view -> finishWithError(null));
         submit.setOnClickListener(view -> {
-            String ucpValue = createAccount ? ucpName.getText().toString().trim() : null;
-            String characterValue = characterName.getText().toString().trim();
-            String birthplaceValue = birthplace.getText().toString().trim();
+            ucpLayout.setError(null);
+            characterLayout.setError(null);
+            countryLayout.setError(null);
+            genderLayout.setError(null);
+            heightLayout.setError(null);
+            weightLayout.setError(null);
+
+            String ucpValue = createAccount ? valueOf(ucpName) : null;
+            String characterValue = valueOf(characterName);
+            String countryValue = country.getText() == null ? "" : country.getText().toString().trim();
+            String genderValue = gender.getText() == null ? "" : gender.getText().toString().trim();
+            String heightText = valueOf(height);
+            String weightText = valueOf(weight);
             boolean valid = true;
 
             if (createAccount && !UCP_NAME_PATTERN.matcher(ucpValue).matches()) {
-                ucpName.setError("3–31 karakter; mulai dengan huruf dan akhiri dengan huruf/angka.");
+                ucpLayout.setError("3–31 karakter; mulai dengan huruf, tanpa spasi.");
                 valid = false;
             }
             if (!CHARACTER_NAME_PATTERN.matcher(characterValue).matches()
                     || characterValue.length() > 23) {
-                characterName.setError("Gunakan format NamaDepan_NamaBelakang (huruf Latin, maks. 23 karakter).");
+                characterLayout.setError("Gunakan format Nama_Belakang dengan huruf Latin (maks. 23 karakter).");
                 valid = false;
             }
-            if (!BIRTHPLACE_PATTERN.matcher(birthplaceValue).matches()) {
-                birthplace.setError("Isi tempat lahir (2–63 huruf, spasi, atau tanda baca sederhana).");
+            if (!BIRTHPLACE_PATTERN.matcher(countryValue).matches()
+                    || !Arrays.asList(countries).contains(countryValue)) {
+                countryLayout.setError("Pilih negara dari daftar.");
+                valid = false;
+            }
+            if (!"Male".equals(genderValue) && !"Female".equals(genderValue)) {
+                genderLayout.setError("Pilih gender.");
                 valid = false;
             }
             if (birthdate[0].isEmpty()) {
                 Toast.makeText(this, "Pilih tanggal lahir karakter.", Toast.LENGTH_SHORT).show();
                 valid = false;
             }
-            if (gender.getSelectedItemPosition() == 0) {
-                Toast.makeText(this, "Pilih gender karakter.", Toast.LENGTH_SHORT).show();
+
+            int heightValue = parseNumber(heightText);
+            int weightValue = parseNumber(weightText);
+            if (heightValue < 80 || heightValue > 250) {
+                heightLayout.setError("Masukkan TB antara 80–250 cm.");
                 valid = false;
             }
-            if (!valid) {
-                return;
+            if (weightValue < 20 || weightValue > 300) {
+                weightLayout.setError("Masukkan BB antara 20–300 kg.");
+                valid = false;
             }
+            if (!valid) return;
 
-            String genderValue = gender.getSelectedItemPosition() == 1 ? "Male" : "Female";
             NativeGoogleAuthApi.RegistrationData registration =
-                    new NativeGoogleAuthApi.RegistrationData(
-                            ucpValue, characterValue, birthplaceValue, birthdate[0], genderValue);
+                    new NativeGoogleAuthApi.RegistrationData(ucpValue, characterValue,
+                            countryValue, birthdate[0], genderValue, heightValue, weightValue);
             submit.setEnabled(false);
             submit.setText("Memproses…");
             new Thread(() -> {
                 try {
                     NativeGoogleAuthApi.LoginTicket ticket =
                             NativeGoogleAuthApi.registerIdToken(idToken, nonce, registration);
-                    runOnUiThread(() -> {
-                        if (dialog.isShowing()) {
-                            dialog.dismiss();
-                        }
-                        finishWithTicket(ticket);
-                    });
+                    runOnUiThread(() -> finishWithTicket(ticket));
                 } catch (NativeGoogleAuthApi.AuthException e) {
                     runOnUiThread(() -> {
-                        if (isFinishing() || isDestroyed() || completed) {
-                            return;
-                        }
-                        if (dialog.isShowing()) {
-                            submit.setEnabled(true);
-                            submit.setText("Daftar & masuk");
-                        }
-                        if ("UCP_NAME_TAKEN".equals(e.code) && ucpName != null) {
-                            ucpName.setError(e.getMessage());
+                        if (isFinishing() || isDestroyed() || completed) return;
+                        submit.setEnabled(true);
+                        submit.setText("Daftar & masuk");
+                        if ("UCP_NAME_TAKEN".equals(e.code)) {
+                            ucpLayout.setError(e.getMessage());
                         } else if ("CHARACTER_NAME_TAKEN".equals(e.code)) {
-                            characterName.setError(e.getMessage());
-                        } else if ("REGISTRATION_CONFLICT".equals(e.code)) {
-                            Toast.makeText(this, e.getMessage(), Toast.LENGTH_LONG).show();
-                        } else if ("INVALID_REGISTRATION".equals(e.code)) {
-                            Toast.makeText(this, e.getMessage(), Toast.LENGTH_LONG).show();
+                            characterLayout.setError(e.getMessage());
                         } else {
-                            if (dialog.isShowing()) {
-                                dialog.dismiss();
-                            }
-                            finishWithError(e.getMessage());
+                            Toast.makeText(this, e.getMessage(), Toast.LENGTH_LONG).show();
                         }
                     });
                 } catch (IOException e) {
-                    runOnUiThread(() -> {
-                        if (dialog.isShowing()) {
-                            dialog.dismiss();
-                        }
-                        finishWithError(
-                                "Tidak dapat memastikan hasil pendaftaran. Silakan login Google lagi.");
-                    });
+                    runOnUiThread(() -> finishWithError(
+                            "Tidak dapat memastikan hasil pendaftaran. Silakan login Google lagi."));
                 }
             }, "xyron-google-register").start();
         });
     }
 
-    private EditText addInput(LinearLayout parent, String hint, int inputType) {
-        EditText input = new EditText(this);
-        input.setHint(hint);
-        input.setSingleLine(true);
-        input.setInputType(inputType);
-        parent.addView(input, matchWrap());
-        return input;
+    private String valueOf(TextInputEditText input) {
+        return input.getText() == null ? "" : input.getText().toString().trim();
     }
 
-    private LinearLayout.LayoutParams matchWrap() {
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        params.bottomMargin = dp(8);
-        return params;
-    }
-
-    private int dp(int value) {
-        return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
+    private int parseNumber(String value) {
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException ignored) {
+            return -1;
+        }
     }
 
     private void finishWithTicket(NativeGoogleAuthApi.LoginTicket ticket) {
-        if (isFinishing() || isDestroyed() || completed) {
+        if (ticket == null || isFinishing() || isDestroyed() || completed) return;
+        completed = true;
+        GoogleAuthTicketStore.markSignedIn(this, ticket.characterName);
+
+        if (autoConnectFlow) {
+            Intent gameIntent = new Intent(this, SAMP.class);
+            gameIntent.putExtra(SAMP.EXTRA_GOOGLE_LOGIN_TICKET, ticket.loginName);
+            gameIntent.putExtra(SAMP.EXTRA_GOOGLE_LOGIN_EXPIRES_AT, ticket.expiresAtMillis);
+            startActivity(gameIntent);
+            finish();
             return;
         }
-        completed = true;
+
         Intent result = new Intent();
         result.putExtra(EXTRA_LOGIN_NAME, ticket.loginName);
         result.putExtra(EXTRA_TICKET_EXPIRES_AT, ticket.expiresAtMillis);
@@ -335,9 +353,7 @@ public final class GoogleSignInActivity extends AppCompatActivity {
     }
 
     private void finishWithError(String message) {
-        if (completed || isFinishing()) {
-            return;
-        }
+        if (completed || isFinishing()) return;
         completed = true;
         setResult(RESULT_CANCELED);
         if (message != null && !message.trim().isEmpty()) {

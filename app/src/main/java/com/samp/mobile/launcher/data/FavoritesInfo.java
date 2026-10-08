@@ -56,7 +56,9 @@ public class FavoritesInfo {
 
     public static void Save(Context context) {
         try {
-            File file = new File(context.getExternalFilesDir(null), "SAMP/favorites.json");
+            File sampDirectory = new File(context.getExternalFilesDir(null), "SAMP/");
+            sampDirectory.mkdirs();
+            File file = new File(sampDirectory, "favorites.json");
             if (file.exists()) {
                 file.delete();
             }
@@ -72,7 +74,6 @@ public class FavoritesInfo {
                 jSONObject2.put("ip", favoriteServerData.ip);
                 jSONObject2.put("port", favoriteServerData.port);
             }
-            new File(context.getExternalFilesDir(null), "SAMP/").mkdirs();
             file.createNewFile();
             BufferedWriter bufferedWriter = new BufferedWriter(new FileWriter(file));
             bufferedWriter.write(jSONObject.toString());
@@ -80,6 +81,16 @@ public class FavoritesInfo {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    public static void keepOnlyServer(Context context, String ip, int port) {
+        if (context == null || ip == null || ip.trim().isEmpty() || port < 1 || port > 65535) {
+            return;
+        }
+        serverList.clear();
+        serverList.add(new FavoriteServerData(0, 0, ip.trim(), port));
+        bLoaded = true;
+        Save(context);
     }
 
     public static boolean AddServer(Context context, int i, int i2, String str, int i3) {

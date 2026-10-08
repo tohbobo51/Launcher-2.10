@@ -22,7 +22,13 @@ import android.widget.Toast;
 import android.widget.ToggleButton;
 
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.widget.SwitchCompat;
+import androidx.core.content.ContextCompat;
+import androidx.credentials.ClearCredentialStateRequest;
+import androidx.credentials.CredentialManager;
+import androidx.credentials.CredentialManagerCallback;
+import androidx.credentials.exceptions.ClearCredentialException;
 import androidx.fragment.app.Fragment;
 
 import com.joom.paranoid.Obfuscate;
@@ -71,8 +77,7 @@ public class SettingsFragment extends Fragment {
 
         mGoogleLoginButton = view.findViewById(R.id.google_login_button);
         mGoogleLoginButton.setOnTouchListener(new ButtonAnimator(getContext(), mGoogleLoginButton));
-        mGoogleLoginButton.setOnClickListener(v -> startActivityForResult(
-                new Intent(requireContext(), GoogleSignInActivity.class), REQUEST_GOOGLE_LOGIN));
+        mGoogleLoginButton.setOnClickListener(v -> onGoogleButtonClicked());
         refreshGoogleLoginButton();
         autoCompleteTextView = view.findViewById(R.id.spinner);
         mKeyboardSwitch = view.findViewById(R.id.keyboard_switch);
@@ -278,8 +283,55 @@ public class SettingsFragment extends Fragment {
         if (mGoogleLoginButton == null || getContext() == null) {
             return;
         }
-        mGoogleLoginButton.setText(GoogleAuthTicketStore.hasValidTicket(requireContext())
-                ? "Google siap — Connect sekarang" : "Login dengan Google");
+        boolean signedIn = GoogleAuthTicketStore.isSignedIn(requireContext());
+        mGoogleLoginButton.setText(signedIn ? "Google aktif  ·  Logout" : "Login dengan Google");
+        mGoogleLoginButton.setContentDescription(signedIn
+                ? "Google terhubung. Ketuk untuk logout."
+                : "Login dengan Google");
+    }
+
+    private void onGoogleButtonClicked() {
+        if (GoogleAuthTicketStore.isSignedIn(requireContext())) {
+            String characterName = GoogleAuthTicketStore.getCharacterName(requireContext());
+            String message = characterName == null || characterName.isEmpty()
+                    ? "Keluar dari akun Google launcher ini?"
+                    : "Keluar dari akun Google untuk " + characterName + "?";
+            new AlertDialog.Builder(requireContext())
+                    .setTitle("Logout Google")
+                    .setMessage(message)
+                    .setNegativeButton("Batal", null)
+                    .setPositiveButton("Logout", (dialog, which) -> logoutGoogle())
+                    .show();
+            return;
+        }
+        startActivityForResult(new Intent(requireContext(), GoogleSignInActivity.class),
+                REQUEST_GOOGLE_LOGIN);
+    }
+
+    private void logoutGoogle() {
+        GoogleAuthTicketStore.logout(requireContext());
+        refreshGoogleLoginButton();
+        Toast.makeText(requireContext(), "Akun Google sudah logout dari launcher.",
+                Toast.LENGTH_SHORT).show();
+        try {
+            CredentialManager.create(requireContext()).clearCredentialStateAsync(
+                    new ClearCredentialStateRequest(),
+                    null,
+                    ContextCompat.getMainExecutor(requireContext()),
+                    new CredentialManagerCallback<Void, ClearCredentialException>() {
+                        @Override
+                        public void onResult(Void result) {
+                            // Credential provider session is cleared as well as the local marker.
+                        }
+
+                        @Override
+                        public void onError(ClearCredentialException error) {
+                            Log.w("GoogleAuth", "Could not clear provider credential state", error);
+                        }
+                    });
+        } catch (RuntimeException error) {
+            Log.w("GoogleAuth", "Could not clear provider credential state", error);
+        }
     }
 
     @Override

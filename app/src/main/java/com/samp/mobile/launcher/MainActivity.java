@@ -145,12 +145,16 @@ public class MainActivity extends AppCompatActivity {
         }
         ((ImageView)tabLayout.getTabAt(0).getCustomView().findViewById(R.id.imageView2)).setBackgroundResource(tabSelectedImages[0]);
 
-        getServersInfo();
-        getFavoriteServersInfo();
+        mServersList.clear();
+        mServersList.add(new SAMPServerInfo(1, 1, "Vice Side Roleplay",
+                ConfigValidator.FIXED_SERVER_IP, ConfigValidator.FIXED_SERVER_PORT,
+                0, 0, 0, 1, 0, "English"));
+        FavoritesInfo.keepOnlyServer(this, ConfigValidator.FIXED_SERVER_IP,
+                ConfigValidator.FIXED_SERVER_PORT);
     }
 
     public final ArrayList<SAMPServerInfo> getServerList() {
-        return mServersList;
+        return new ArrayList<>(mServersList);
     }
 
     public final ArrayList<SAMPServerInfo> getFavoriteServerList() {

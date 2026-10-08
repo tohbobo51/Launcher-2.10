@@ -23,6 +23,7 @@ import com.joom.paranoid.Obfuscate;
 import com.samp.mobile.R;
 import com.samp.mobile.game.GTASA;
 import com.samp.mobile.game.SAMP;
+import com.samp.mobile.launcher.GoogleSignInActivity;
 import com.samp.mobile.launcher.util.ButtonAnimator;
 import com.samp.mobile.launcher.util.ConfigValidator;
 import com.samp.mobile.launcher.util.GoogleAuthTicketStore;
@@ -59,9 +60,15 @@ public class ServerInformationFragment extends Dialog {
     private void startGoogleOnlyGame() {
         GoogleAuthTicketStore.Ticket ticket = GoogleAuthTicketStore.consume(activity);
         if (ticket == null) {
-            Toast.makeText(activity,
-                    "Login Google dulu di tab Settings, lalu sambungkan server sebelum ticket kedaluwarsa.",
-                    Toast.LENGTH_LONG).show();
+            if (GoogleAuthTicketStore.isSignedIn(activity)) {
+                Intent refreshIntent = new Intent(activity, GoogleSignInActivity.class);
+                refreshIntent.putExtra(GoogleSignInActivity.EXTRA_AUTO_CONNECT, true);
+                activity.startActivity(refreshIntent);
+            } else {
+                Toast.makeText(activity,
+                        "Login Google dulu di tab Settings untuk menyambungkan server.",
+                        Toast.LENGTH_LONG).show();
+            }
             dismiss();
             return;
         }
@@ -115,10 +122,9 @@ public class ServerInformationFragment extends Dialog {
                 if(file.exists()) {
                     try {
                         Wini wini = new Wini(file);
-                        wini.put("client", "host", sampServerInfo.getAddress());
-                        wini.put("client", "port", sampServerInfo.getPort());
-                        wini.put("client", "password", mServerPassword.getVisibility() == View.VISIBLE
-                                ? mServerPassword.getText().toString() : "");
+                        wini.put("client", "host", ConfigValidator.FIXED_SERVER_IP);
+                        wini.put("client", "port", ConfigValidator.FIXED_SERVER_PORT);
+                        wini.put("client", "password", "");
                         wini.store();
                     } catch (IOException e) {
                         e.printStackTrace();

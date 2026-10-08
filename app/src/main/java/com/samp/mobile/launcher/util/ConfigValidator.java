@@ -12,6 +12,9 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 public class ConfigValidator {
+    public static final String FIXED_SERVER_IP = "142.132.203.47";
+    public static final int FIXED_SERVER_PORT = 10125;
+
     public static void validateConfigFiles(Context context) {
         File externalFilesDir = context.getExternalFilesDir(null);
         if (externalFilesDir == null) {
@@ -26,6 +29,8 @@ public class ConfigValidator {
             try {
                 Wini settings = new Wini(file);
                 settings.put("client", "name", "");
+                settings.put("client", "host", FIXED_SERVER_IP);
+                settings.put("client", "port", FIXED_SERVER_PORT);
                 settings.store();
             } catch (IOException e) {
                 e.printStackTrace();

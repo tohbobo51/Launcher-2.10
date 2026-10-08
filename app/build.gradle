@@ -37,8 +37,8 @@ android {
         applicationId "com.samp.mobile"
         minSdk 26
         targetSdk 34
-        versionCode 110
-        versionName "0.8.2.6"
+        versionCode 111
+        versionName "0.8.2.7"
 
         multiDexEnabled true
         buildConfigField "String", "GOOGLE_WEB_CLIENT_ID", groovy.json.JsonOutput.toJson(googleWebClientId)
