@@ -524,14 +524,9 @@ public class UpdateService extends Service {
     }
 
     public boolean isGameUpdateExists() {
-        PackageInfo packageInfo = null;
-        try {
-            packageInfo = getPackageManager().getPackageInfo("com.samp.mobile", PackageManager.GET_ACTIVITIES);
-        } catch (PackageManager.NameNotFoundException e) {
-            e.printStackTrace();
-        }
-        Log.d("x1y2z", "isGameUpdateExists -> currentVersion " + packageInfo.versionCode + " | mUpdateVersion " + this.mUpdateVersion);
-        return packageInfo.versionCode == this.mUpdateVersion ? false:true;
+        // This fork is signed and versioned independently. Do not install the
+        // upstream launcher APK; retain the upstream data-file updater only.
+        return false;
     }
 
     private void sendLoadingScreen(boolean unpacking, String filename, long current, long total) {

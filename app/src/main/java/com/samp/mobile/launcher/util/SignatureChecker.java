@@ -21,10 +21,18 @@ public class SignatureChecker {
                 String appSignature = getSignature(packageInfo);
                 Log.d("SignatureChecker", "App Signature: " + appSignature);
 
-                String expectedSignature = "d994a5eddcd6880b96223161ff90d7fb788edbec481351d4c01b6ea01366da50";
+                String[] expectedSignatures = {
+                        "d994a5eddcd6880b96223161ff90d7fb788edbec481351d4c01b6ea01366da50",
+                        "0f1705b93a768cf1dfbdbcf3e3f13e9802259c9f55be3f0c01e26781511ad348"
+                };
 
                 assert appSignature != null;
-                return appSignature.equalsIgnoreCase(expectedSignature);
+                for (String expectedSignature : expectedSignatures) {
+                    if (appSignature.equalsIgnoreCase(expectedSignature)) {
+                        return true;
+                    }
+                }
+                return false;
             }
         } catch (NameNotFoundException | NoSuchAlgorithmException e) {
             e.printStackTrace();
