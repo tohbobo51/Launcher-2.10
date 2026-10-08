@@ -44,7 +44,9 @@ import javax.microedition.khronos.opengles.GL10;
 @Obfuscate
 public class SplashActivity extends AppCompatActivity {
 
-    private final String[] permissions = {"android.permission.READ_EXTERNAL_STORAGE", "android.permission.WRITE_EXTERNAL_STORAGE", "android.permission.RECORD_AUDIO"};
+    // App-specific external files are accessible without legacy storage
+    // permissions. Microphone access is optional and must not block updates.
+    private final String[] permissions = {Manifest.permission.RECORD_AUDIO};
 
     public int mGpuType;
 
@@ -250,12 +252,12 @@ public class SplashActivity extends AppCompatActivity {
 
         for (int i = 0; i < size; i++) {
             if (ContextCompat.checkSelfPermission(this, permissions[i])
-                    == PackageManager.PERMISSION_GRANTED) {
-                return true;
+                    != PackageManager.PERMISSION_GRANTED) {
+                return false;
             }
         }
 
-        return false;
+        return true;
     }
 
     @Override
@@ -264,11 +266,17 @@ public class SplashActivity extends AppCompatActivity {
         if (requestCode != 1) {
             return;
         }
-        if (grantResults.length <= 0 || grantResults[0] != 0) {
-            Toast.makeText(this, "Permissions not granted!", Toast.LENGTH_LONG).show();
-        } else {
-            mIsBind = bindService(new Intent(this, UpdateService.class), mConnection, Context.BIND_AUTO_CREATE);
+        boolean microphoneGranted = grantResults.length > 0
+                && grantResults[0] == PackageManager.PERMISSION_GRANTED;
+        if (!microphoneGranted) {
+            Toast.makeText(this,
+                    "Microphone permission denied; voice chat may be unavailable. Continuing launcher setup.",
+                    Toast.LENGTH_LONG).show();
         }
+
+        // The updater only writes to this app's private external-files folder;
+        // it can proceed whether the optional microphone permission is granted or not.
+        mIsBind = bindService(new Intent(this, UpdateService.class), mConnection, Context.BIND_AUTO_CREATE);
 
     }
 
