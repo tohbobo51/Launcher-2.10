@@ -12,6 +12,7 @@ import com.samp.mobile.game.ui.AttachEdit;
 import com.samp.mobile.game.ui.CustomKeyboard;
 import com.samp.mobile.game.ui.LoadingScreen;
 import com.samp.mobile.game.ui.dialog.DialogManager;
+import com.samp.mobile.launcher.util.ConfigValidator;
 import com.samp.mobile.launcher.util.SharedPreferenceCore;
 import com.samp.mobile.launcher.util.SignatureChecker;
 
@@ -169,6 +170,7 @@ public class SAMP extends GTASA implements CustomKeyboard.InputListener, HeightP
     @Override
     public void onCreate(Bundle savedInstanceState) {
         Log.i(TAG, "**** onCreate");
+        ConfigValidator.validateConfigFiles(this);
         super.onCreate(savedInstanceState);
 
         //if(!SignatureChecker.isSignatureValid(this, getPackageName()))
