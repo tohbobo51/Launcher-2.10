@@ -86,7 +86,7 @@
     <activity
         android:name=".launcher.GoogleSignInActivity"
         android:screenOrientation="portrait"
-        android:theme="@style/Theme.AppCompat.Light.NoActionBar"
+        android:theme="@style/Theme.GoogleRegistration"
         android:exported="false" />
 
     <activity
