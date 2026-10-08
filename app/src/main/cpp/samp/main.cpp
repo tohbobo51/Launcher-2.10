@@ -254,7 +254,12 @@ void DoInitStuff()
 	{
 		//ReadSettingFile();
 
-		pNetGame = new CNetGame("94.23.168.153", 2305, pSettings->Get().szNickName, pSettings->Get().szPassword);
+		const stSettings& clientSettings = pSettings->Get();
+		const char* serverHost = clientSettings.szHost[0] ? clientSettings.szHost : "94.23.168.153";
+		const int serverPort = clientSettings.iPort > 0 && clientSettings.iPort <= 65535
+				? clientSettings.iPort : 2305;
+		pNetGame = new CNetGame(serverHost, serverPort,
+				clientSettings.szNickName, clientSettings.szPassword);
 		bNetworkInited = true;
 
         FLog("DoInitStuff end");

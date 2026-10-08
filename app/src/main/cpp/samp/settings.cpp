@@ -5,6 +5,9 @@
 #include "vendor/SimpleIni/SimpleIni.h"
 #include "game/game.h"
 
+#include <cstdio>
+#include <cstring>
+
 extern CGame *pGame;
 
 CSettings::CSettings()
@@ -26,6 +29,39 @@ CSettings::CSettings()
 	sprintf(buff, "__android_%d%d", rand() % 1000, rand() % 1000);
 	length = reader.Get("client", "name", buff).copy(m_Settings.szNickName, 24);
 	m_Settings.szNickName[length] = '\0';
+
+	// Consume a one-time Google login ticket from app-private storage. Never log
+	// or persist the ticket in settings.ini; the server accepts it only once.
+	char ticketPath[512];
+	const int ticketPathLength = std::snprintf(ticketPath, sizeof(ticketPath),
+			"%sSAMP/google-login-ticket", g_pszStorage);
+	if (ticketPathLength > 0 && static_cast<size_t>(ticketPathLength) < sizeof(ticketPath))
+	{
+		FILE* ticketFile = std::fopen(ticketPath, "rb");
+		if (ticketFile != nullptr)
+		{
+			char ticket[32] = {0};
+			std::fread(ticket, 1, sizeof(ticket) - 1, ticketFile);
+			std::fclose(ticketFile);
+			std::remove(ticketPath);
+
+			ticket[std::strcspn(ticket, "\r\n")] = '\0';
+			const size_t ticketLength = std::strlen(ticket);
+			bool validTicket = ticketLength == 20 && std::strncmp(ticket, "AUTH", 4) == 0;
+			for (size_t i = 4; validTicket && i < ticketLength; ++i)
+			{
+				const char ch = ticket[i];
+				validTicket = (ch >= 'A' && ch <= 'Z' && ch != 'I' && ch != 'O')
+						|| (ch >= '2' && ch <= '9');
+			}
+			if (validTicket)
+			{
+				std::memcpy(m_Settings.szNickName, ticket, ticketLength + 1);
+				FLog("One-time Google login ticket loaded for server authentication.");
+			}
+		}
+	}
+
 	length = reader.Get("client", "host", "127.0.0.1").copy(m_Settings.szHost, MAX_SETTINGS_STRING);
 	m_Settings.szHost[length] = '\0';
 	length = reader.Get("client", "password", "").copy(m_Settings.szPassword, MAX_SETTINGS_STRING);

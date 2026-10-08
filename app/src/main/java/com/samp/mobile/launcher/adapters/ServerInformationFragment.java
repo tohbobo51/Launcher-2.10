@@ -2,6 +2,7 @@ package com.samp.mobile.launcher.adapters;
 
 import android.app.Activity;
 import android.app.Dialog;
+import android.content.ActivityNotFoundException;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Bundle;
@@ -24,8 +25,10 @@ import com.joom.paranoid.Obfuscate;
 import com.samp.mobile.R;
 import com.samp.mobile.game.GTASA;
 import com.samp.mobile.game.SAMP;
+import com.samp.mobile.launcher.GoogleSignInActivity;
 import com.samp.mobile.launcher.MainActivity;
 import com.samp.mobile.launcher.util.ButtonAnimator;
+import com.samp.mobile.launcher.util.ConfigValidator;
 import com.samp.mobile.launcher.util.SAMPServerInfo;
 import com.samp.mobile.launcher.util.SharedPreferenceCore;
 
@@ -54,6 +57,30 @@ public class ServerInformationFragment extends Dialog {
         mServerAdapter = adapter;
         sampServerInfo = sampServerInfo1;
         this.position = position;
+    }
+
+    private void showConnectionOptions() {
+        new AlertDialog.Builder(activity)
+                .setTitle("Pilih cara masuk")
+                .setMessage("Login Google dipakai untuk server roleplay yang memakai sistem autentikasi Google. Untuk server lain, pilih koneksi biasa.")
+                .setItems(new String[]{"Login Google & Connect", "Connect biasa"}, (dialog, which) -> {
+                    if (which == 0) {
+                        Intent loginIntent = new Intent(activity, GoogleSignInActivity.class);
+                        try {
+                            activity.startActivityForResult(
+                                    loginIntent, MainActivity.REQUEST_GOOGLE_SIGN_IN);
+                        } catch (ActivityNotFoundException e) {
+                            Toast.makeText(activity, "Komponen login Google tidak tersedia.",
+                                    Toast.LENGTH_LONG).show();
+                        }
+                    } else {
+                        activity.startActivity(new Intent(activity, SAMP.class));
+                        activity.finish();
+                        dismiss();
+                    }
+                })
+                .setNegativeButton("Batal", null)
+                .show();
     }
 
     @Nullable
@@ -93,12 +120,15 @@ public class ServerInformationFragment extends Dialog {
         mConnect.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+                ConfigValidator.validateConfigFiles(activity);
                 File file = new File(activity.getExternalFilesDir(null) + "/SAMP/settings.ini");
                 if(file.exists()) {
                     try {
                         Wini wini = new Wini(file);
                         wini.put("client", "host", sampServerInfo.getAddress());
                         wini.put("client", "port", sampServerInfo.getPort());
+                        wini.put("client", "password", mServerPassword.getVisibility() == View.VISIBLE
+                                ? mServerPassword.getText().toString() : "");
                         wini.store();
                     } catch (IOException e) {
                         e.printStackTrace();
@@ -149,15 +179,11 @@ public class ServerInformationFragment extends Dialog {
                         dismiss();
                     }
                     else {
-                        activity.startActivity(new Intent(activity, SAMP.class));
-                        activity.finish();
-                        dismiss();
+                        showConnectionOptions();
                     }
                 }
                 else {
-                    activity.startActivity(new Intent(activity, SAMP.class));
-                    activity.finish();
-                    dismiss();
+                    showConnectionOptions();
                 }
             }
         });

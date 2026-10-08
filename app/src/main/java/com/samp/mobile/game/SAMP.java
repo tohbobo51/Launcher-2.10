@@ -1,5 +1,6 @@
 package com.samp.mobile.game;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.KeyEvent;
@@ -16,10 +17,14 @@ import com.samp.mobile.launcher.util.ConfigValidator;
 import com.samp.mobile.launcher.util.SharedPreferenceCore;
 import com.samp.mobile.launcher.util.SignatureChecker;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 @Obfuscate
 public class SAMP extends GTASA implements CustomKeyboard.InputListener, HeightProvider.HeightListener {
+    public static final String EXTRA_GOOGLE_LOGIN_TICKET = "google_login_ticket";
     private static final String TAG = "SAMP";
     private static SAMP instance;
 
@@ -171,7 +176,14 @@ public class SAMP extends GTASA implements CustomKeyboard.InputListener, HeightP
     public void onCreate(Bundle savedInstanceState) {
         Log.i(TAG, "**** onCreate");
         ConfigValidator.validateConfigFiles(this);
+        boolean loginTicketReady = stageGoogleLoginTicket(getIntent());
         super.onCreate(savedInstanceState);
+        if (!loginTicketReady) {
+            Toast.makeText(this, "Sesi login tidak dapat disiapkan. Silakan login Google lagi.",
+                    Toast.LENGTH_LONG).show();
+            finish();
+            return;
+        }
 
         //if(!SignatureChecker.isSignatureValid(this, getPackageName()))
         //{
@@ -200,6 +212,45 @@ public class SAMP extends GTASA implements CustomKeyboard.InputListener, HeightP
     }
 
     private native void initializeSAMP();
+
+    private boolean stageGoogleLoginTicket(Intent intent) {
+        String loginName = intent == null
+                ? null : intent.getStringExtra(EXTRA_GOOGLE_LOGIN_TICKET);
+        File externalFiles = getExternalFilesDir(null);
+        if (externalFiles == null) {
+            return loginName == null || loginName.isEmpty();
+        }
+
+        File ticketFile = new File(externalFiles, "SAMP/google-login-ticket");
+        if (ticketFile.exists() && !ticketFile.delete()) {
+            Log.e(TAG, "Could not clear a stale Google login ticket.");
+            return false;
+        }
+        if (loginName == null || loginName.isEmpty()) {
+            return true;
+        }
+        if (!loginName.matches("AUTH[A-HJ-NP-Z2-9]{16}")) {
+            return false;
+        }
+
+        File parent = ticketFile.getParentFile();
+        if (parent == null || (!parent.exists() && !parent.mkdirs())) {
+            Log.e(TAG, "Could not create the login ticket directory.");
+            return false;
+        }
+        try (FileOutputStream output = new FileOutputStream(ticketFile, false)) {
+            output.write(loginName.getBytes(StandardCharsets.US_ASCII));
+            output.write('\n');
+            output.flush();
+            return true;
+        } catch (IOException e) {
+            Log.e(TAG, "Failed to stage a Google login ticket.", e);
+            if (ticketFile.exists()) {
+                ticketFile.delete();
+            }
+            return false;
+        }
+    }
 
 
 
