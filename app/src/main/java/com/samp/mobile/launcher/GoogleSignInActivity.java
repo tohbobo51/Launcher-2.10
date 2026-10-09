@@ -7,7 +7,9 @@ import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
 import android.util.Base64;
 import android.text.InputFilter;
+import android.text.InputType;
 import android.view.View;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
 import android.widget.Button;
@@ -177,6 +179,7 @@ public final class GoogleSignInActivity extends AppCompatActivity {
         TextInputEditText characterName = findViewById(R.id.registration_character);
         TextInputLayout countryLayout = findViewById(R.id.registration_country_layout);
         AutoCompleteTextView country = findViewById(R.id.registration_country);
+        MaterialButton countrySearch = findViewById(R.id.registration_country_search);
         TextInputLayout genderLayout = findViewById(R.id.registration_gender_layout);
         AutoCompleteTextView gender = findViewById(R.id.registration_gender);
         TextInputLayout heightLayout = findViewById(R.id.registration_height_layout);
@@ -209,6 +212,21 @@ public final class GoogleSignInActivity extends AppCompatActivity {
         country.setOnClickListener(view -> country.showDropDown());
         country.setOnFocusChangeListener((view, hasFocus) -> {
             if (hasFocus) country.showDropDown();
+        });
+        country.setOnItemClickListener((parent, view, position, id) -> {
+            country.setInputType(InputType.TYPE_NULL);
+            countryLayout.setError(null);
+            InputMethodManager keyboard = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+            if (keyboard != null) keyboard.hideSoftInputFromWindow(country.getWindowToken(), 0);
+        });
+        countrySearch.setOnClickListener(view -> {
+            country.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS
+                    | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+            country.requestFocus();
+            country.setSelection(0, country.length());
+            country.showDropDown();
+            InputMethodManager keyboard = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+            if (keyboard != null) keyboard.showSoftInput(country, InputMethodManager.SHOW_IMPLICIT);
         });
 
         String[] genders = {"Male", "Female"};
