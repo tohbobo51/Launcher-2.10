@@ -2,6 +2,7 @@ package com.samp.mobile.game;
 
 import android.content.Intent;
 import android.content.res.Configuration;
+import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.KeyEvent;
@@ -101,10 +102,16 @@ public class GTASA extends WarMedia {
         super.onCreate(bundle);
 
         if (new SharedPreferenceCore().getBoolean(this, "MLOADER")) {
-            try {
-                System.loadLibrary("monetloader");
-            } catch (ExceptionInInitializerError | UnsatisfiedLinkError e) {
-                Log.e("AXL", e.getMessage());
+            if (Build.VERSION.SDK_INT >= 36) {
+                // MonetLoader's JNI_OnLoad dereferences a null string on Android 16.
+                // It is optional; skip it so the game can continue to initialize.
+                Log.w("AXL", "MonetLoader skipped on Android 16 due to native startup crash.");
+            } else {
+                try {
+                    System.loadLibrary("monetloader");
+                } catch (ExceptionInInitializerError | UnsatisfiedLinkError e) {
+                    Log.e("AXL", e.getMessage());
+                }
             }
         }
     }
