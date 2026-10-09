@@ -463,6 +463,9 @@ void AND_TouchEvent_hook(int type, int num, int posX, int posY)
 
 	if (pUI != nullptr)
 	{
+		if (pUI->buttonpanel() && pUI->buttonpanel()->handleLauncherTouch(type, num, posX, posY))
+			return;
+
 		switch (type)
 		{
 			case 2: // push

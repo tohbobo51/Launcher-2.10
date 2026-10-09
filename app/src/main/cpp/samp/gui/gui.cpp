@@ -138,10 +138,11 @@ void UI::drawList()
 	this->addChild(label);*/
 
 	if (pPlayerTags) pPlayerTags->Render(renderer());
-	if (pNetGame && pNetGame->GetTextLabelPool()) pNetGame->GetTextLabelPool()->Render(renderer());
-	if (pNetGame && pNetGame->GetPlayerBubblePool()) pNetGame->GetPlayerBubblePool()->Render(renderer());
+		if (pNetGame && pNetGame->GetTextLabelPool()) pNetGame->GetTextLabelPool()->Render(renderer());
+		if (pNetGame && pNetGame->GetPlayerBubblePool()) pNetGame->GetPlayerBubblePool()->Render(renderer());
 
-	draw(renderer());
+		draw(renderer());
+		if (m_buttonPanel) m_buttonPanel->drawLauncherUi();
 }
 
 void UI::touchEvent(const ImVec2& pos, TouchType type)
@@ -309,4 +310,3 @@ void UI::ProcessPushedTextdraws()
         m_BufferedCommandTextdraws.ReadUnlock();
     }
 }
-
