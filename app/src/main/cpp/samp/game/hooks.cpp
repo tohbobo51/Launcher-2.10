@@ -1850,7 +1850,7 @@ void InstallSpecialHooks()
 
     InstallUrezHooks();
 
-	//InstallCRHooks(); //call this when using the CRMP cache
+	InstallCRHooks(); // CRMP cache uses DXT textures instead of the default PVR/ETC extensions.
 
     CHook::Redirect("_ZN5CGame20InitialiseRenderWareEv", &CGame::InitialiseRenderWare);
     CHook::InstallPLT(g_libGTASA + (VER_x32 ? 0x6785FC : 0x84EC20), &StartGameScreen__OnNewGameCheck_hook, &StartGameScreen__OnNewGameCheck);
